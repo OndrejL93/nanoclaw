@@ -490,6 +490,42 @@ async function runQuery(
   return { newSessionId, lastAssistantUuid, closedDuringQuery };
 }
 
+// Uses native https — no extra deps needed
+async function callGroq(prompt: string): Promise<string> {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) throw new Error('GROQ_API_KEY not set');
+  const { default: https } = await import('https');
+  const body = JSON.stringify({
+    model: 'deepseek-r1-distill-llama-70b',
+    messages: [{ role: 'user', content: prompt }],
+    stream: false,
+  });
+  return new Promise((resolve, reject) => {
+    const req = https.request({
+      hostname: 'api.groq.com', path: '/openai/v1/chat/completions', method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}`, 'Content-Length': Buffer.byteLength(body) },
+    }, (res) => {
+      let raw = '';
+      res.on('data', (c: Buffer) => { raw += c; });
+      res.on('end', () => {
+        if (res.statusCode !== 200) { reject(new Error(`Groq ${res.statusCode}: ${raw.slice(0, 200)}`)); return; }
+        try { resolve(JSON.parse(raw).choices[0].message.content as string); }
+        catch { reject(new Error(`Groq parse error: ${raw.slice(0, 200)}`)); }
+      });
+    });
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
+}
+
+function isRateLimitError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const msg = err.message.toLowerCase();
+  return msg.includes('429') || msg.includes('529') || msg.includes('rate limit') ||
+         msg.includes('overloaded') || msg.includes('too many requests');
+}
+
 async function main(): Promise<void> {
   let containerInput: ContainerInput;
 
@@ -513,6 +549,11 @@ async function main(): Promise<void> {
   const sdkEnv: Record<string, string | undefined> = { ...process.env };
   for (const [key, value] of Object.entries(containerInput.secrets || {})) {
     sdkEnv[key] = value;
+  }
+
+  // GROQ_API_KEY is safe to expose to Bash — it's not stripped by the sanitize hook.
+  if (containerInput.secrets?.GROQ_API_KEY) {
+    process.env.GROQ_API_KEY = containerInput.secrets.GROQ_API_KEY;
   }
 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -575,12 +616,24 @@ async function main(): Promise<void> {
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
     log(`Agent error: ${errorMessage}`);
-    writeOutput({
-      status: 'error',
-      result: null,
-      newSessionId: sessionId,
-      error: errorMessage
-    });
+
+    if (isRateLimitError(err) && process.env.GROQ_API_KEY) {
+      log('Rate limit detected, falling back to Groq...');
+      try {
+        const result = await callGroq(prompt);
+        log(`Groq fallback succeeded`);
+        writeOutput({ status: 'success', result, newSessionId: sessionId });
+        return;
+      } catch (dsErr) {
+        const dsMsg = dsErr instanceof Error ? dsErr.message : String(dsErr);
+        log(`Groq fallback failed: ${dsMsg}`);
+        writeOutput({ status: 'error', result: null, newSessionId: sessionId,
+          error: `Claude rate-limited, Groq fallback also failed: ${dsMsg}` });
+        process.exit(1);
+      }
+    }
+
+    writeOutput({ status: 'error', result: null, newSessionId: sessionId, error: errorMessage });
     process.exit(1);
   }
 }

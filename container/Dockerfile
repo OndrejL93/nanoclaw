@@ -45,6 +45,10 @@ RUN npm install
 # Copy source code
 COPY agent-runner/ ./
 
+# Install ask-groq CLI
+COPY agent-runner/ask-groq.mjs /usr/local/bin/ask-groq
+RUN chmod +x /usr/local/bin/ask-groq
+
 # Build TypeScript
 RUN npm run build
 
