@@ -1,6 +1,6 @@
 ---
 name: groq
-description: Delegate simple, self-contained tasks to Groq (deepseek-r1-distill-llama-70b) for fast, free responses. Use proactively for translation, math, Q&A, and text summarization when no tools are needed.
+description: Delegate simple, self-contained tasks to Groq (llama-3.3-70b-versatile) for fast, free responses. Use proactively for translation, math, Q&A, and text summarization when no tools are needed.
 allowed-tools: Bash(ask-groq:*)
 ---
 

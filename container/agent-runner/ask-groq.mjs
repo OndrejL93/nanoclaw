@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// ask-groq — call Groq (deepseek-r1-distill-llama-70b) with a prompt, print the response.
+// ask-groq — call Groq (llama-3.3-70b-versatile) with a prompt, print the response.
 // Usage:
 //   ask-groq "What is 15% of 847?"
 //   echo "Translate to Spanish: Hello" | ask-groq
@@ -30,7 +30,7 @@ if (!prompt) {
 }
 
 const body = JSON.stringify({
-  model: 'deepseek-r1-distill-llama-70b',
+  model: 'llama-3.3-70b-versatile',
   messages: [{ role: 'user', content: prompt }],
   stream: false,
 });
