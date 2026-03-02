@@ -289,6 +289,17 @@ export function storeMessageDirect(msg: {
   );
 }
 
+export function getRecentMessages(chatJid: string, limit: number): NewMessage[] {
+  return db.prepare(`
+    SELECT id, chat_jid, sender, sender_name, content, timestamp,
+           is_from_me, is_bot_message
+    FROM messages
+    WHERE chat_jid = ?
+    ORDER BY timestamp ASC
+    LIMIT ?
+  `).all(chatJid, limit) as NewMessage[];
+}
+
 export function getNewMessages(
   jids: string[],
   lastTimestamp: string,

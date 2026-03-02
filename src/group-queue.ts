@@ -14,7 +14,7 @@ interface QueuedTask {
 const MAX_RETRIES = 5;
 const BASE_RETRY_MS = 5000;
 
-interface GroupState {
+export interface GroupState {
   active: boolean;
   idleWaiting: boolean;
   isTaskContainer: boolean;
@@ -334,6 +334,10 @@ export class GroupQueue {
       }
       // If neither pending, skip this group
     }
+  }
+
+  getStatus(): ReadonlyMap<string, Readonly<GroupState>> {
+    return this.groups;
   }
 
   async shutdown(_gracePeriodMs: number): Promise<void> {
